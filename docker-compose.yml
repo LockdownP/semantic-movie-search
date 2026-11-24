@@ -1,0 +1,42 @@
+services:
+
+  qdrant:
+    image: qdrant/qdrant:v1.14.1
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  ingest:
+    build: .
+    image: movie-search:local
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      HF_HOME: /model_cache
+    volumes:
+      - model_cache:/model_cache
+    depends_on:
+      - qdrant
+    command: >
+      sh -c "python prepare_data.py
+      && python ingest.py"
+
+  app:
+    image: movie-search:local
+    pull_policy: never
+    ports:
+      - "127.0.0.1:8501:8501"
+    environment:
+      QDRANT_URL: http://qdrant:6333
+      HF_HOME: /model_cache
+    volumes:
+      - model_cache:/model_cache
+    depends_on:
+      ingest:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  qdrant_data:
+  model_cache:
